@@ -2,7 +2,6 @@ package com.example.auto4jobs.controllers;
 
 import com.example.auto4jobs.dto.UserRegistrationDTO;
 import com.example.auto4jobs.entities.User;
-import com.example.auto4jobs.repositories.UserRepository;
 import com.example.auto4jobs.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -11,13 +10,14 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
@@ -30,10 +30,7 @@ public class AuthController {
     private AuthenticationManager authenticationManager;
 
     @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private SecurityContextRepository securityContextRepository;
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody UserRegistrationDTO registrationDTO) {
@@ -41,7 +38,7 @@ public class AuthController {
             if (!registrationDTO.getRole().equals("APPRENANT") && !registrationDTO.getRole().equals("LAUREAT")) {
                 return ResponseEntity.badRequest().body("Seuls les rôles APPRENANT ou LAUREAT sont autorisés.");
             }
-            User user = userService.registerUser(registrationDTO);
+            userService.registerUser(registrationDTO);
             return ResponseEntity.ok("Utilisateur enregistré avec succès.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -51,7 +48,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody Map<String, String> loginData, HttpSession session) {
+    public ResponseEntity<?> loginUser(@RequestBody Map<String, String> loginData,
+                                       HttpServletRequest request,
+                                       HttpServletResponse response) {
         try {
             String email = loginData.get("email");
             String password = loginData.get("password");
@@ -59,52 +58,80 @@ public class AuthController {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, password)
             );
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            
+            org.springframework.security.core.context.SecurityContext context = SecurityContextHolder.createEmptyContext();
+            context.setAuthentication(authentication);
+            SecurityContextHolder.setContext(context);
+            
+            securityContextRepository.saveContext(context, request, response);
 
             User user = userService.findByEmail(email);
             if (user == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Utilisateur non trouvé.");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("message", "Utilisateur non trouvé après authentification.");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
             }
 
-            Map<String, String> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("role", user.getRole());
-            response.put("email", user.getEmail());
-            response.put("firstName", user.getFirstName());
-            response.put("lastName", user.getLastName());
+            Map<String, String> responseMap = new HashMap<>();
+            responseMap.put("status", "success");
+            responseMap.put("role", user.getRole());
+            responseMap.put("email", user.getEmail());
+            responseMap.put("firstName", user.getFirstName());
+            responseMap.put("lastName", user.getLastName());
             
-            session.setAttribute("user", user);
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect.");
+            return ResponseEntity.ok(responseMap);
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            e.printStackTrace(); 
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Email ou mot de passe incorrect.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        } catch (Exception e) { 
+            e.printStackTrace(); 
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Erreur interne du serveur lors de la connexion.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
     @GetMapping("/auth/validate-token")
     public ResponseEntity<?> validateToken() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
+        if (authentication != null && authentication.isAuthenticated() && 
+            !(authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
             String email = authentication.getName();
             User user = userService.findByEmail(email);
             if (user != null) {
-                Map<String, String> response = new HashMap<>();
-                response.put("status", "success");
-                response.put("role", user.getRole());
-                response.put("email", user.getEmail());
-                response.put("firstName", user.getFirstName());
-                response.put("lastName", user.getLastName());
-                return ResponseEntity.ok(response);
+                Map<String, String> responseData = new HashMap<>();
+                responseData.put("status", "success");
+                responseData.put("role", user.getRole());
+                responseData.put("email", user.getEmail());
+                responseData.put("firstName", user.getFirstName());
+                responseData.put("lastName", user.getLastName());
+                return ResponseEntity.ok(responseData);
             }
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token invalide.");
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", System.currentTimeMillis());
+        errorDetails.put("status", HttpServletResponse.SC_UNAUTHORIZED);
+        errorDetails.put("error", "Unauthorized");
+        errorDetails.put("message", "Session invalide ou utilisateur non authentifié.");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorDetails);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpSession session) {
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response, HttpSession session) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null) {
+            // new SecurityContextLogoutHandler().logout(request, response, authentication);
+        }
         session.invalidate();
-        SecurityContextHolder.clearContext();
-        return ResponseEntity.ok("Déconnexion réussie.");
+        SecurityContextHolder.clearContext(); 
+        Map<String, String> responseBody = new HashMap<>();
+        responseBody.put("status", "success");
+        responseBody.put("message", "Déconnexion réussie.");
+        return ResponseEntity.ok(responseBody);
     }
 }

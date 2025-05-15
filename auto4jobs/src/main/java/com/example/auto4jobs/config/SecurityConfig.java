@@ -2,28 +2,30 @@ package com.example.auto4jobs.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.example.auto4jobs.repositories.UserRepository;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.security.core.userdetails.User;
 
 import java.util.Arrays;
 
@@ -32,17 +34,18 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final UserRepository userRepository;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public SecurityConfig(UserRepository userRepository) {
+    public SecurityConfig(UserRepository userRepository, ObjectMapper objectMapper) {
         this.userRepository = userRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
     public UserDetailsService userDetailsService() {
         return username -> {
             com.example.auto4jobs.entities.User user = userRepository.findByEmail(username)
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found for email: " + username));
 
             return User.builder()
                     .username(user.getEmail())
@@ -68,43 +71,42 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/register", "/api/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/job-offers").permitAll()
+                .requestMatchers("/api/job-offers/**").hasRole("RECRUTEUR")
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/auth/validate-token").authenticated()
+                .requestMatchers("/api/users/me/profile").authenticated()
                 .anyRequest().authenticated()
             )
-            .formLogin(form -> form
-                .loginProcessingUrl("/api/login")
-                .usernameParameter("email")
-                .passwordParameter("password")
-                .successHandler((request, response, authentication) -> {
-                    response.setContentType("application/json");
-                    response.setCharacterEncoding("UTF-8");
-                    
-                    com.example.auto4jobs.entities.User user = userRepository.findByEmail(authentication.getName())
-                            .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-                    
-                    Map<String, Object> responseBody = new HashMap<>();
-                    responseBody.put("status", "success");
-                    responseBody.put("role", user.getRole());
-                    responseBody.put("email", user.getEmail());
-                    responseBody.put("firstName", user.getFirstName());
-                    responseBody.put("lastName", user.getLastName());
-                    
-                    objectMapper.writeValue(response.getWriter(), responseBody);
-                })
-                .failureHandler((request, response, exception) -> {
-                    response.setContentType("application/json");
-                    response.setCharacterEncoding("UTF-8");
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+            )
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json;charset=UTF-8");
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    
-                    Map<String, String> responseBody = new HashMap<>();
-                    responseBody.put("status", "error");
-                    responseBody.put("message", "Email ou mot de passe incorrect");
-                    
-                    objectMapper.writeValue(response.getWriter(), responseBody);
+                    response.getWriter().write(objectMapper.writeValueAsString(Map.of(
+                        "timestamp", System.currentTimeMillis(),
+                        "status", HttpServletResponse.SC_UNAUTHORIZED,
+                        "error", "Unauthorized",
+                        "message", authException.getMessage(),
+                        "path", request.getRequestURI()
+                    )));
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.getWriter().write(objectMapper.writeValueAsString(Map.of(
+                        "timestamp", System.currentTimeMillis(),
+                        "status", HttpServletResponse.SC_FORBIDDEN,
+                        "error", "Forbidden",
+                        "message", accessDeniedException.getMessage(),
+                        "path", request.getRequestURI()
+                    )));
                 })
             )
             .logout(logout -> logout
@@ -141,5 +143,10 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
     }
 }

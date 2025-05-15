@@ -21,7 +21,4 @@ public class Centre {
 
     @Column(name = "nom", nullable = false)
     private String nom;
-
-    @Column(name = "email_domain", nullable = true)
-    private String emailDomain;
 }

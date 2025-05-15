@@ -7,8 +7,6 @@ import com.example.auto4jobs.repositories.CentreRepository;
 import com.example.auto4jobs.repositories.EntrepriseRepository;
 import com.example.auto4jobs.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
@@ -18,8 +16,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
 public class AdminService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AdminService.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -35,66 +39,28 @@ public class AdminService {
 
     @PostConstruct
     public void init() {
-        User admin = userRepository.findByEmail("admin@auto4jobs.com").orElse(null);
-        if (admin == null) {
-            admin = new User();
-            admin.setFirstName("Admin");
-            admin.setLastName("System");
-            admin.setEmail("admin@auto4jobs.com");
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setRole("ADMIN");
-            admin.setIsValidated(true);
-            userRepository.save(admin);
-        } else {
-            // Force le mot de passe à admin123 à chaque démarrage pour debug
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setIsValidated(true);
-            userRepository.save(admin);
+        logger.info("Initializing system admin...");
+        // Initialize Admin User
+        User admin = userRepository.findByEmail("admin@auto4jobs.com")
+            .orElseGet(() -> {
+                logger.info("Admin user not found, creating a new one.");
+                User newUser = new User();
+                newUser.setEmail("admin@auto4jobs.com");
+                newUser.setFirstName("Admin");
+                newUser.setLastName("System");
+                newUser.setRole("ADMIN");
+                return newUser;
+            });
+        if (admin.getId() != null) { // Check if it's an existing user being updated
+            logger.info("Admin user found, ensuring password and validation status are up to date.");
         }
-
-        // Créer un compte directeur exécutif par défaut s'il n'existe pas
-        if (!userRepository.findByEmail("directeur@auto4jobs.com").isPresent()) {
-            User directeur = new User();
-            directeur.setFirstName("Directeur");
-            directeur.setLastName("Exécutif");
-            directeur.setEmail("directeur@auto4jobs.com");
-            directeur.setPassword(passwordEncoder.encode("directeur123"));
-            directeur.setRole("DIRECTEUR_EXECUTIF");
-            directeur.setIsValidated(true);
-            userRepository.save(directeur);
-        }
+        admin.setPassword(passwordEncoder.encode("admin123")); // Force password for debug, consider changing for prod
+        admin.setIsValidated(true);
+        userRepository.save(admin);
+        logger.info("Admin user initialization complete.");
     }
 
-    @EventListener
-    public void onApplicationEvent(ContextRefreshedEvent event) {
-        createAdminIfNotExists();
-    }
-
-    private void createAdminIfNotExists() {
-        String adminEmail = "admin@auto4jobs.com";
-        String adminPassword = "admin123";
-
-        userRepository.findByEmail(adminEmail).ifPresentOrElse(
-            user -> {
-                // Mettre à jour le mot de passe et la validation si l'admin existe déjà
-                user.setPassword(passwordEncoder.encode(adminPassword));
-                user.setIsValidated(true);
-                userRepository.save(user);
-            },
-            () -> {
-                // Créer un nouvel admin s'il n'existe pas
-                User admin = new User();
-                admin.setFirstName("Admin");
-                admin.setLastName("System");
-                admin.setEmail(adminEmail);
-                admin.setPassword(passwordEncoder.encode(adminPassword));
-                admin.setRole("ADMIN");
-                admin.setIsValidated(true);
-                userRepository.save(admin);
-            }
-        );
-    }
-
+    @Transactional
     public User createUser(User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         if (user.getRole().equals("APPRENANT") || user.getRole().equals("LAUREAT")) {
@@ -105,40 +71,47 @@ public class AdminService {
         return userRepository.save(user);
     }
 
+    @Transactional
     public void deleteUser(Long userId) {
+        logger.info("Attempting to delete user with ID: {}", userId);
+        if (!userRepository.existsById(userId)) {
+            logger.warn("User with ID: {} not found for deletion.", userId);
+            // Consider throwing a custom NotFoundException here if preferred
+            return; 
+        }
         userRepository.deleteById(userId);
+        logger.info("User with ID: {} deleted successfully.", userId);
     }
 
+    @Transactional
     public Entreprise createEntreprise(Entreprise entreprise) {
         return entrepriseRepository.save(entreprise);
     }
 
+    @Transactional
     public Centre createCentre(Centre centre) {
         try {
-            System.out.println("Tentative de création du centre: " + centre);
-            System.out.println("Ville: " + centre.getVille());
-            System.out.println("Nom: " + centre.getNom());
-            System.out.println("Email Domain: " + centre.getEmailDomain());
-            
+            logger.debug("Attempting to create centre: {}", centre);
             if (centre.getVille() == null || centre.getVille().trim().isEmpty()) {
-                System.out.println("Erreur: La ville est vide");
                 throw new IllegalArgumentException("La ville est obligatoire");
             }
             if (centre.getNom() == null || centre.getNom().trim().isEmpty()) {
-                System.out.println("Erreur: Le nom est vide");
                 throw new IllegalArgumentException("Le nom est obligatoire");
             }
             
             Centre savedCentre = centreRepository.save(centre);
-            System.out.println("Centre créé avec succès: " + savedCentre);
+            logger.info("Centre created successfully: {}", savedCentre);
             return savedCentre;
+        } catch (IllegalArgumentException e) {
+            logger.warn("Failed to create centre due to invalid argument: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            System.err.println("Erreur lors de la création du centre: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error during centre creation: {}", centre, e);
             throw e;
         }
     }
 
+    @Transactional
     public User assignResponsableToCentre(Long userId, Long centreId) {
         User user = userRepository.findById(userId).orElseThrow();
         Centre centre = centreRepository.findById(centreId).orElseThrow();
@@ -147,6 +120,7 @@ public class AdminService {
         return userRepository.save(user);
     }
 
+    @Transactional
     public User assignRecruiterToEntreprises(Long userId, List<Long> entrepriseIds, boolean isIntermediate) {
         User user = userRepository.findById(userId).orElseThrow();
         if (!user.getRole().equals("RECRUTEUR")) {
@@ -167,6 +141,7 @@ public class AdminService {
         return userRepository.save(user);
     }
 
+    @Transactional
     public User assignIntermediateRecruiterToEntreprises(Long userId, String entrepriseNames) {
         User user = userRepository.findById(userId).orElseThrow();
         if (!user.getRole().equals("RECRUTEUR")) {
@@ -193,6 +168,7 @@ public class AdminService {
         return userRepository.save(user);
     }
 
+    @Transactional
     public User updateRecruiterEntreprises(Long userId, List<Long> entrepriseIds, String entrepriseNames, boolean isIntermediate) {
         User user = userRepository.findById(userId).orElseThrow();
         if (!user.getRole().equals("RECRUTEUR")) {
@@ -228,34 +204,51 @@ public class AdminService {
         return userRepository.save(user);
     }
 
+    @Transactional(readOnly = true)
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<Entreprise> getAllEntreprises() {
         return entrepriseRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<Centre> getAllCentres() {
         return centreRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<User> getAllRecruiters() {
         return userRepository.findByRole("RECRUTEUR");
     }
 
+    @Transactional
     public User updateUser(Long userId, User updatedUser) {
-        User user = userRepository.findById(userId).orElseThrow();
+        logger.info("Attempting to update user with ID: {}", userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.warn("User with ID: {} not found for update.", userId);
+                    // Ideally, throw a specific "NotFoundException" here
+                    return new RuntimeException("User not found with id: " + userId); 
+                });
+        
+        logger.debug("Updating user fields for ID: {}", userId);
         user.setFirstName(updatedUser.getFirstName());
         user.setLastName(updatedUser.getLastName());
         user.setEmail(updatedUser.getEmail());
         user.setPhone(updatedUser.getPhone());
         if (updatedUser.getPassword() != null && !updatedUser.getPassword().isEmpty()) {
+            logger.debug("Updating password for user ID: {}", userId);
             user.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
         }
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        logger.info("User with ID: {} updated successfully.", userId);
+        return savedUser;
     }
 
+    @Transactional
     public Entreprise updateEntreprise(Long entrepriseId, Entreprise updatedEntreprise) {
         Entreprise entreprise = entrepriseRepository.findById(entrepriseId).orElseThrow();
         entreprise.setNom(updatedEntreprise.getNom());
@@ -264,6 +257,7 @@ public class AdminService {
         return entrepriseRepository.save(entreprise);
     }
 
+    @Transactional
     public Centre updateCentre(Long centreId, Centre updatedCentre) {
         Centre centre = centreRepository.findById(centreId).orElseThrow();
         centre.setNom(updatedCentre.getNom());
@@ -271,10 +265,12 @@ public class AdminService {
         return centreRepository.save(centre);
     }
 
+    @Transactional
     public void deleteEntreprise(Long entrepriseId) {
         entrepriseRepository.deleteById(entrepriseId);
     }
 
+    @Transactional
     public void deleteCentre(Long centreId) {
         centreRepository.deleteById(centreId);
     }
