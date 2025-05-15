@@ -1,11 +1,10 @@
 package com.example.auto4jobs.services;
 
 import com.example.auto4jobs.entities.User;
-import com.example.auto4jobs.entities.Centre;
+// import com.example.auto4jobs.entities.Centre; // Centre is not used
 import com.example.auto4jobs.repositories.UserRepository;
-import com.example.auto4jobs.repositories.CentreRepository;
+// import com.example.auto4jobs.repositories.CentreRepository; // CentreRepository is not used
 import com.example.auto4jobs.dto.UserRegistrationDTO;
-import com.example.auto4jobs.validation.EmailValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
@@ -20,18 +19,13 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private CentreRepository centreRepository;
+    // @Autowired
+    // private CentreRepository centreRepository; // No longer used
 
     @Autowired
     private PasswordEncoder passwordEncoder;
 
     public User registerUser(UserRegistrationDTO registrationDTO) {
-        // Validate email using custom validator
-        if (!EmailValidator.isValidEmail(registrationDTO.getEmail())) {
-            throw new IllegalArgumentException("Format d'email invalide.");
-        }
-
         // Existing email uniqueness check
         if (userRepository.findByEmail(registrationDTO.getEmail()).isPresent()) {
             throw new IllegalArgumentException("Cet email est déjà utilisé.");
@@ -45,25 +39,8 @@ public class UserService {
         user.setPhone(registrationDTO.getPhone());
         user.setRole(registrationDTO.getRole());
 
-        // Extract email domain
-        String emailDomain = EmailValidator.getEmailDomain(registrationDTO.getEmail());
-        Centre centre = emailDomain != null ? 
-            centreRepository.findByEmailDomain(emailDomain).orElse(null) : null;
-        
-        if (centre != null) {
-            user.setCentre(centre);
-            if (registrationDTO.getRole().equals("APPRENANT")) {
-                user.setIsValidated(false);
-            } else {
-                user.setIsValidated(true);
-            }
-        } else {
-            if (registrationDTO.getRole().equals("APPRENANT")) {
-                user.setIsValidated(false);
-            } else {
-                user.setIsValidated(true);
-            }
-        }
+        // Simplified logic for setting isValidated
+        user.setIsValidated(!registrationDTO.getRole().equals("APPRENANT"));
 
         return userRepository.save(user);
     }

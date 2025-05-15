@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.example.auto4jobs.validation.ValidEmail;
 
 import java.util.Set;
 
@@ -26,7 +25,6 @@ public class User {
     private String lastName;
 
     @Column(unique = true)
-    @ValidEmail(message = "Format d'email invalide")
     private String email;
 
     @Column(name = "password", nullable = false)

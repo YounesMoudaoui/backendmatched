@@ -73,8 +73,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/register", "/api/login").permitAll()
                 .requestMatchers("/api/auth/validate-token").authenticated()
-                .requestMatchers("/api/users/**", "/api/entreprises/**", "/api/centres/**", "/api/recruteurs/**")
-                    .hasAnyRole("ADMIN", "DIRECTEUR_EXECUTIF")
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
