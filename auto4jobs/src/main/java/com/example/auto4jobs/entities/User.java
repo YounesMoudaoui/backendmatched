@@ -53,6 +53,12 @@ public class User {
             inverseJoinColumns = @JoinColumn(name = "entreprise_id")
     )
     private Set<Entreprise> entreprises;
+    
+    @Column(name = "cv_path")
+    private String cvPath;
+    
+    @Column(name = "cv_upload_date")
+    private Long cvUploadDate;
 
     public void setIsValidated(boolean isValidated) {
         this.isValidated = isValidated;

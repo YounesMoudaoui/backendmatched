@@ -76,7 +76,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/register", "/api/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/job-offers").permitAll()
-                .requestMatchers("/api/job-offers/**").hasRole("RECRUTEUR")
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/api/job-offers/my-offers").hasRole("RECRUTEUR")
+                .requestMatchers(HttpMethod.POST, "/api/job-offers").hasRole("RECRUTEUR")
+                .requestMatchers(HttpMethod.PUT, "/api/job-offers/**").hasRole("RECRUTEUR")
+                .requestMatchers(HttpMethod.DELETE, "/api/job-offers/**").hasRole("RECRUTEUR")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/auth/validate-token").authenticated()
                 .requestMatchers("/api/users/me/profile").authenticated()
@@ -87,6 +91,11 @@ public class SecurityConfig {
             )
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, authException) -> {
+                    if (request.getMethod().equals("GET") && request.getRequestURI().equals("/api/job-offers")) {
+                        response.setStatus(HttpServletResponse.SC_OK);
+                        return;
+                    }
+                    
                     response.setContentType("application/json;charset=UTF-8");
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.getWriter().write(objectMapper.writeValueAsString(Map.of(
@@ -134,6 +143,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

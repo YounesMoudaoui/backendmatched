@@ -9,18 +9,25 @@ import com.example.auto4jobs.repositories.EntrepriseRepository;
 import com.example.auto4jobs.repositories.JobOfferRepository;
 import com.example.auto4jobs.repositories.UserRepository;
 import org.hibernate.Hibernate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class JobOfferService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(JobOfferService.class);
 
     @Autowired
     private JobOfferRepository jobOfferRepository;
@@ -180,7 +187,92 @@ public class JobOfferService {
         jobOfferRepository.delete(jobOffer);
     }
 
+    @Transactional(readOnly = true)
     public List<JobOffer> getActiveJobOffers() {
-        return jobOfferRepository.findAllByIsActiveTrue();
+        try {
+            logger.debug("Fetching all active job offers");
+            List<JobOffer> offers = jobOfferRepository.findAllByIsActiveTrue();
+            
+            if (offers == null) {
+                logger.warn("Repository returned null for active job offers");
+                return new ArrayList<>();
+            }
+            
+            // Résoudre le problème de chargement paresseux (lazy loading)
+            for (JobOffer offer : offers) {
+                // Initialiser explicitement les relations pour éviter les LazyInitializationException
+                if (offer.getEntreprise() != null) {
+                    Hibernate.initialize(offer.getEntreprise());
+                }
+                
+                // Convertir les collections en listes pour éviter les problèmes de sérialisation
+                if (offer.getCompetencesTechniquesRequises() != null) {
+                    Hibernate.initialize(offer.getCompetencesTechniquesRequises());
+                }
+                
+                if (offer.getCompetencesComportementalesRequises() != null) {
+                    Hibernate.initialize(offer.getCompetencesComportementalesRequises());
+                }
+                
+                if (offer.getCertificationsDemandees() != null) {
+                    Hibernate.initialize(offer.getCertificationsDemandees());
+                }
+            }
+            
+            logger.debug("Found {} active job offers", offers.size());
+            return offers;
+        } catch (Exception e) {
+            logger.error("Error fetching active job offers", e);
+            throw e;
+        }
+    }
+    
+    // Méthode pour convertir les offres en format compatible avec le frontend
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getActiveJobOffersAsDTO() {
+        List<JobOffer> offers = getActiveJobOffers();
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        for (JobOffer offer : offers) {
+            Map<String, Object> offerMap = new HashMap<>();
+            offerMap.put("id", offer.getId());
+            offerMap.put("titrePoste", offer.getTitrePoste());
+            
+            // Gestion de l'entreprise
+            Map<String, Object> entrepriseMap = new HashMap<>();
+            if (offer.getEntreprise() != null) {
+                entrepriseMap.put("id", offer.getEntreprise().getId());
+                entrepriseMap.put("nom", offer.getEntreprise().getNom());
+                entrepriseMap.put("logoUrl", offer.getEntreprise().getLogoUrl());
+            }
+            offerMap.put("entreprise", entrepriseMap);
+            
+            offerMap.put("localisation", offer.getLocalisation());
+            offerMap.put("descriptionDetaillee", offer.getDescriptionDetaillee());
+            offerMap.put("education", offer.getEducation());
+            offerMap.put("typeContrat", offer.getTypeContrat() != null ? offer.getTypeContrat().name() : null);
+            offerMap.put("dureeContrat", offer.getDureeContrat());
+            offerMap.put("typeModalite", offer.getTypeModalite() != null ? offer.getTypeModalite().name() : null);
+            offerMap.put("experienceSouhaitee", offer.getExperienceSouhaitee());
+            offerMap.put("langue", offer.getLangue());
+            offerMap.put("remuneration", offer.getRemuneration());
+            offerMap.put("isActive", offer.isActive());
+            offerMap.put("createdAt", offer.getCreatedAt());
+            offerMap.put("updatedAt", offer.getUpdatedAt());
+            
+            // Conversion des collections en listes
+            offerMap.put("competencesTechniquesRequises", offer.getCompetencesTechniquesRequises() != null ? 
+                    new ArrayList<>(offer.getCompetencesTechniquesRequises()) : new ArrayList<>());
+            
+            offerMap.put("competencesComportementalesRequises", offer.getCompetencesComportementalesRequises() != null ? 
+                    new ArrayList<>(offer.getCompetencesComportementalesRequises()) : new ArrayList<>());
+            
+            offerMap.put("certificationsDemandees", offer.getCertificationsDemandees() != null ? 
+                    new ArrayList<>(offer.getCertificationsDemandees()) : new ArrayList<>());
+            
+            result.add(offerMap);
+        }
+        
+        return result;
     }
 } 

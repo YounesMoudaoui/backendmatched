@@ -12,11 +12,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/job-offers")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true") // Adjust origins as needed
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class JobOfferController {
 
     private static final Logger logger = LoggerFactory.getLogger(JobOfferController.class);
@@ -85,13 +87,17 @@ public class JobOfferController {
     }
 
     @GetMapping
-    public ResponseEntity<List<JobOffer>> getAllActiveJobOffers() {
+    @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+    public ResponseEntity<?> getAllActiveJobOffers() {
         try {
-            List<JobOffer> jobOffers = jobOfferService.getActiveJobOffers();
+            logger.debug("Fetching all active job offers");
+            List<Map<String, Object>> jobOffers = jobOfferService.getActiveJobOffersAsDTO();
+            logger.debug("Found {} active job offers", jobOffers.size());
             return ResponseEntity.ok(jobOffers);
         } catch (Exception e) {
             logger.error("Error fetching all active job offers", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Une erreur est survenue lors de la récupération des offres d'emploi: " + e.getMessage());
         }
     }
 } 

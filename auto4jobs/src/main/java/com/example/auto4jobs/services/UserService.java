@@ -83,7 +83,9 @@ public class UserService {
                 user.getLastName(),
                 user.getRole(),
                 user.isIntermediateRecruiter(),
-                entrepriseDTOs
+                entrepriseDTOs,
+                user.getCvPath(),
+                user.getCvUploadDate()
         );
     }
 } 
