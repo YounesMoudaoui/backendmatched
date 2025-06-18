@@ -21,7 +21,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class AuthController {
     @Autowired
     private UserService userService;
@@ -125,6 +124,7 @@ public class AuthController {
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response, HttpSession session) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null) {
+            // Garder ce commentaire en phase de développement
             // new SecurityContextLogoutHandler().logout(request, response, authentication);
         }
         session.invalidate();

@@ -1,7 +1,5 @@
 package com.example.auto4jobs.entities;
 
-import com.example.auto4jobs.entities.enums.ContractType;
-import com.example.auto4jobs.entities.enums.OfferModality;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -15,6 +13,23 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 public class JobOffer {
+
+    // Enum ContractType intégré directement dans la classe JobOffer
+    public enum ContractType {
+        STAGE,
+        EMPLOI_CDI,
+        EMPLOI_CDD,
+        ALTERNANCE,
+        FREELANCE,
+        AUTRE
+    }
+    
+    // Enum OfferModality intégré directement dans la classe JobOffer
+    public enum OfferModality {
+        SUR_SITE,
+        HYBRIDE,
+        TELETRAVAIL_COMPLET
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

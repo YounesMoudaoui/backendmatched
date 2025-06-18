@@ -59,6 +59,16 @@ public class User {
     
     @Column(name = "cv_upload_date")
     private Long cvUploadDate;
+    
+    @Lob
+    @Column(name = "cv_data", columnDefinition = "LONGBLOB")
+    private byte[] cvData;
+    
+    @Column(name = "cv_filename")
+    private String cvFilename;
+    
+    @Column(name = "cv_content_type")
+    private String cvContentType;
 
     public void setIsValidated(boolean isValidated) {
         this.isValidated = isValidated;
@@ -66,5 +76,21 @@ public class User {
 
     public void setIsIntermediateRecruiter(boolean isIntermediateRecruiter) {
         this.intermediateRecruiter = isIntermediateRecruiter;
+    }
+
+    public String getCvContentType() {
+        return cvContentType;
+    }
+
+    public void setCvContentType(String cvContentType) {
+        this.cvContentType = cvContentType;
+    }
+    
+    public String getCvFilename() {
+        return cvFilename;
+    }
+    
+    public void setCvFilename(String cvFilename) {
+        this.cvFilename = cvFilename;
     }
 }

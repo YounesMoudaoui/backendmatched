@@ -1,6 +1,7 @@
 package com.example.auto4jobs.controllers;
 
 import com.example.auto4jobs.entities.Centre;
+import org.springframework.web.bind.annotation.RequestMethod;
 import com.example.auto4jobs.entities.Entreprise;
 import com.example.auto4jobs.entities.User;
 import com.example.auto4jobs.services.AdminService;

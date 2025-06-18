@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS users (
     is_validated BOOLEAN NOT NULL DEFAULT FALSE,
     is_intermediate_recruiter BOOLEAN NOT NULL DEFAULT FALSE,
     centre_id BIGINT,
+    cv_path VARCHAR(255),
+    cv_upload_date BIGINT,
+    cv_data LONGBLOB,
+    cv_content_type VARCHAR(100),
+    cv_filename VARCHAR(255),
     FOREIGN KEY (centre_id) REFERENCES centres(id)
 );
 
@@ -85,6 +90,38 @@ CREATE TABLE IF NOT EXISTS job_offer_competences_comportementales (
 CREATE TABLE IF NOT EXISTS job_offer_certifications (
     job_offer_id BIGINT NOT NULL,
     certification VARCHAR(255) NOT NULL,
+    FOREIGN KEY (job_offer_id) REFERENCES job_offers(id)
+);
+
+-- Table des résultats de matching
+CREATE TABLE IF NOT EXISTS matching_results (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    job_offer_id BIGINT NOT NULL,
+    match_score DOUBLE NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (job_offer_id) REFERENCES job_offers(id)
+);
+
+-- Table des explications de matching
+CREATE TABLE IF NOT EXISTS matching_explanations (
+    matching_result_id BIGINT NOT NULL,
+    explanation TEXT NOT NULL,
+    FOREIGN KEY (matching_result_id) REFERENCES matching_results(id)
+);
+
+-- Table des candidatures
+CREATE TABLE IF NOT EXISTS job_applications (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    job_offer_id BIGINT NOT NULL,
+    application_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL,
+    message TEXT,
+    recruiter_notes TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (job_offer_id) REFERENCES job_offers(id)
 );
 

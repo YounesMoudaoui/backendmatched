@@ -41,11 +41,11 @@ public class AdminService {
     public void init() {
         logger.info("Initializing system admin...");
         // Initialize Admin User
-        User admin = userRepository.findByEmail("admin@auto4jobs.com")
+        User admin = userRepository.findByEmail("admin@web4jobs.com")
             .orElseGet(() -> {
                 logger.info("Admin user not found, creating a new one.");
                 User newUser = new User();
-                newUser.setEmail("admin@auto4jobs.com");
+                newUser.setEmail("admin@web4jobs.com");
                 newUser.setFirstName("Admin");
                 newUser.setLastName("System");
                 newUser.setRole("ADMIN");
@@ -54,7 +54,7 @@ public class AdminService {
         if (admin.getId() != null) { // Check if it's an existing user being updated
             logger.info("Admin user found, ensuring password and validation status are up to date.");
         }
-        admin.setPassword(passwordEncoder.encode("admin123")); // Force password for debug, consider changing for prod
+        admin.setPassword(passwordEncoder.encode("password123")); // Mot de passe pour le développement - À CHANGER AVANT LA MISE EN PRODUCTION
         admin.setIsValidated(true);
         userRepository.save(admin);
         logger.info("Admin user initialization complete.");

@@ -1,7 +1,7 @@
 package com.example.auto4jobs.dto;
 
-import com.example.auto4jobs.entities.enums.ContractType;
-import com.example.auto4jobs.entities.enums.OfferModality;
+import com.example.auto4jobs.entities.JobOffer.ContractType;
+import com.example.auto4jobs.entities.JobOffer.OfferModality;
 import lombok.Data;
 
 import java.util.Set;

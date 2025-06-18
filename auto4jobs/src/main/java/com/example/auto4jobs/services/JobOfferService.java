@@ -275,4 +275,44 @@ public class JobOfferService {
         
         return result;
     }
+
+    @Transactional(readOnly = true)
+    public JobOfferDTO getJobOfferForEdit(Long offerId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUserEmail = authentication.getName();
+        User currentUser = userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new IllegalStateException("User not found with email: " + currentUserEmail));
+
+        JobOffer jobOffer = jobOfferRepository.findById(offerId)
+                .orElseThrow(() -> new IllegalArgumentException("Job offer not found with ID: " + offerId));
+
+        // Si l'utilisateur est un recruteur, vérifier qu'il est bien le propriétaire de l'offre
+        if ("RECRUTEUR".equals(currentUser.getRole()) && !jobOffer.getRecruiter().getId().equals(currentUser.getId())) {
+            throw new IllegalStateException("Recruiter is not authorized to edit this job offer.");
+        }
+
+        // Si l'utilisateur est un apprenant, vérifier que l'offre est active
+        if ("APPRENANT".equals(currentUser.getRole()) && !jobOffer.isActive()) {
+            throw new IllegalStateException("This job offer is not active.");
+        }
+
+        // Convertir l'entité JobOffer en JobOfferDTO pour l'édition
+        JobOfferDTO dto = new JobOfferDTO();
+        dto.setTitrePoste(jobOffer.getTitrePoste());
+        dto.setEntrepriseId(jobOffer.getEntreprise().getId());
+        dto.setLocalisation(jobOffer.getLocalisation());
+        dto.setDescriptionDetaillee(jobOffer.getDescriptionDetaillee());
+        dto.setCompetencesTechniquesRequises(jobOffer.getCompetencesTechniquesRequises());
+        dto.setCompetencesComportementalesRequises(jobOffer.getCompetencesComportementalesRequises());
+        dto.setEducation(jobOffer.getEducation());
+        dto.setTypeContrat(jobOffer.getTypeContrat());
+        dto.setDureeContrat(jobOffer.getDureeContrat());
+        dto.setTypeModalite(jobOffer.getTypeModalite());
+        dto.setExperienceSouhaitee(jobOffer.getExperienceSouhaitee());
+        dto.setCertificationsDemandees(jobOffer.getCertificationsDemandees());
+        dto.setLangue(jobOffer.getLangue());
+        dto.setRemuneration(jobOffer.getRemuneration());
+
+        return dto;
+    }
 } 

@@ -18,7 +18,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/job-offers")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class JobOfferController {
 
     private static final Logger logger = LoggerFactory.getLogger(JobOfferController.class);
@@ -51,6 +50,22 @@ public class JobOfferController {
         } catch (Exception e) {
             logger.error("Error fetching job offers for authenticated recruiter", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    @GetMapping("/{offerId}")
+    @PreAuthorize("hasAnyRole('RECRUTEUR', 'APPRENANT')")
+    public ResponseEntity<?> getJobOfferById(@PathVariable Long offerId) {
+        try {
+            JobOfferDTO jobOffer = jobOfferService.getJobOfferForEdit(offerId);
+            return ResponseEntity.ok(jobOffer);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error fetching job offer with ID: {}", offerId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while fetching the job offer.");
         }
     }
 
@@ -87,7 +102,6 @@ public class JobOfferController {
     }
 
     @GetMapping
-    @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
     public ResponseEntity<?> getAllActiveJobOffers() {
         try {
             logger.debug("Fetching all active job offers");
